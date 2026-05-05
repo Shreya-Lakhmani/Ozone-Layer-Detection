@@ -22,9 +22,13 @@ def load_data():
     # Cleaning
     df.replace('?', np.nan, inplace=True)
     # df.iloc[:,1:73] = df.iloc[:,1:73].astype(float)
-    df.iloc[:,1:73] = df.iloc[:,1:73].apply(pd.to_numeric, errors='coerce')
+    # df.iloc[:,1:73] = df.iloc[:,1:73].apply(pd.to_numeric, errors='coerce')
+    cols = df.columns[1:73]
+    df[cols] = df[cols].apply(pd.to_numeric, errors='coerce')
 
-    df['Target'] = pd.Categorical(df['Target'], [0.0,1.0]).codes
+    #df['Target'] = pd.Categorical(df['Target'], [0.0,1.0]).codes
+    df['Target'] = pd.to_numeric(df['Target'], errors='coerce')
+    df['Target'] = df['Target'].astype(int)
 
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     df = df.set_index('Date')
