@@ -9,16 +9,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 from sklearn.tree import DecisionTreeClassifier
 
-# -------------------------------
-# PAGE CONFIG
-# -------------------------------
+
 st.set_page_config(page_title="Ozone Prediction App", layout="wide")
 
 st.title("🌍 Ozone Prediction & Analysis Dashboard")
-
-# -------------------------------
-# LOAD DATA
-# -------------------------------
 @st.cache_data
 def load_data():
     df = pd.read_csv("eighthr.data", header=None)
@@ -27,7 +21,8 @@ def load_data():
 
     # Cleaning
     df.replace('?', np.nan, inplace=True)
-    df.iloc[:,1:73] = df.iloc[:,1:73].astype(float)
+    # df.iloc[:,1:73] = df.iloc[:,1:73].astype(float)
+    df.iloc[:,1:73] = df.iloc[:,1:73].apply(pd.to_numeric, errors='coerce')
 
     df['Target'] = pd.Categorical(df['Target'], [0.0,1.0]).codes
 
@@ -39,44 +34,16 @@ def load_data():
     return df
 
 df = load_data()
-
-# -------------------------------
-# SIDEBAR
-# -------------------------------
 st.sidebar.header("Controls")
 
 show_data = st.sidebar.checkbox("Show Data")
 show_corr = st.sidebar.checkbox("Show Correlation Heatmap")
 show_plots = st.sidebar.checkbox("Show Visualizations")
 run_model = st.sidebar.checkbox("Run ML Models")
-
-# -------------------------------
-# DATA DISPLAY
-# -------------------------------
 if show_data:
     st.subheader("Dataset")
     st.dataframe(df.head())
 
-# -------------------------------
-# CORRELATION
-# -------------------------------
-# if show_corr:
-#     st.write(df.isnull().sum())
-#     st.write(df.shape)
-#     st.subheader("Correlation Heatmap")
-#     fig, ax = plt.subplots(figsize=(12,6))
-#     sns.heatmap(df.corr(numeric_only=True), cmap="coolwarm", ax=ax)
-#     st.pyplot(fig)
-
-# numeric_df = df.select_dtypes(include=np.number)
-
-# # Remove constant columns
-# numeric_df = numeric_df.loc[:, numeric_df.nunique() > 1]
-
-# fig, ax = plt.subplots(figsize=(12,6))
-# sns.heatmap(numeric_df.corr(), cmap="coolwarm", center=0, ax=ax)
-
-# st.pyplot(fig)
 important_cols = [
     'WSR_AV','T_AV','T_PK','RH85','RH70',
     'HT85','HT70','SLP','Precp','Target'
@@ -86,10 +53,6 @@ fig, ax = plt.subplots(figsize=(10,5))
 sns.heatmap(df[important_cols].corr(), annot=True, cmap="coolwarm", ax=ax)
 
 st.pyplot(fig)
-
-# -------------------------------
-# VISUALIZATION
-# -------------------------------
 if show_plots:
     st.subheader("Visualizations")
 
@@ -121,47 +84,11 @@ if show_plots:
     ax.plot(df.index, df['Target'])
     st.pyplot(fig)
 
-# -------------------------------
-# # MACHINE LEARNING
-# # -------------------------------
-# if run_model:
-#     st.subheader("🤖 Machine Learning Models")
-
-#     features = [
-#         'WSR_PK','WSR_AV','T_PK','T_AV','T85','RH85','U85','V85','HT85',
-#         'T70','RH70','U70','V70','HT70',
-#         'T50','RH50','U50','V50','HT50',
-#         'KI','TT','SLP','SLP_','Precp'
-#     ]
-
-#     X = df[features]
-#     y = df['Target']
-
-#     X_train, X_test, y_train, y_test = train_test_split(
-#         X, y, test_size=0.2, random_state=42
-#     )
-
-#     # Random Forest
-#     rf = RandomForestClassifier(n_estimators=100, random_state=42)
-#     rf.fit(X_train, y_train)
-#     y_pred = rf.predict(X_test)
-
-#     st.write("### Random Forest Report")
-#     st.text(classification_report(y_test, y_pred))
-
-#     # Decision Tree
-#     clf = DecisionTreeClassifier(max_depth=10)
-#     clf.fit(X_train, y_train)
-
-#     score = clf.score(X_test, y_test)
-
-#     st.write(f"### Decision Tree Accuracy: {score:.2f}")
-
-# -------------------------------
-# MACHINE LEARNING (PRO VERSION)
-# -------------------------------
 if run_model:
     st.subheader("🤖 Machine Learning Dashboard")
+
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.metrics import confusion_matrix, classification_report
 
     features = [
         'WSR_PK','WSR_AV','T_PK','T_AV','T85','RH85','U85','V85','HT85',
@@ -173,95 +100,50 @@ if run_model:
     X = df[features]
     y = df['Target']
 
+    st.write("Class Distribution:", y.value_counts())
+
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    # -------------------------------
-    # Train Models
-    # -------------------------------
-    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    rf = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=12,
+        class_weight='balanced',
+        random_state=42
+    )
     rf.fit(X_train, y_train)
-    rf_acc = rf.score(X_test, y_test)
-
-    dt = DecisionTreeClassifier(max_depth=10)
-    dt.fit(X_train, y_train)
-    dt_acc = dt.score(X_test, y_test)
-
-    # -------------------------------
-    # 📊 Show Metrics (Clean UI)
-    # -------------------------------
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric("🌲 Random Forest Accuracy", f"{rf_acc:.2f}")
-
-    with col2:
-        st.metric("🌳 Decision Tree Accuracy", f"{dt_acc:.2f}")
-
-    # -------------------------------
-    # 📈 Accuracy Comparison Chart
-    # -------------------------------
-    st.subheader("Model Comparison")
-
-    model_df = pd.DataFrame({
-        "Model": ["Random Forest", "Decision Tree"],
-        "Accuracy": [rf_acc, dt_acc]
-    })
-
-    fig, ax = plt.subplots()
-    ax.bar(model_df["Model"], model_df["Accuracy"])
-    ax.set_ylabel("Accuracy")
-    ax.set_ylim(0,1)
-    st.pyplot(fig)
-
-    # -------------------------------
-    # 📌 Feature Importance (VERY IMPORTANT)
-    # -------------------------------
-    st.subheader("📌 Feature Importance (Random Forest)")
-
-    importance = pd.DataFrame({
-        "Feature": features,
-        "Importance": rf.feature_importances_
-    }).sort_values(by="Importance", ascending=False)
-
-    fig, ax = plt.subplots(figsize=(8,5))
-    ax.barh(importance["Feature"], importance["Importance"])
-    ax.invert_yaxis()
-    st.pyplot(fig)
-
-    # -------------------------------
-    # 📋 Classification Report (Formatted)
-    # -------------------------------
-    st.subheader("📋 Classification Report")
 
     y_pred = rf.predict(X_test)
-    report = classification_report(y_test, y_pred, output_dict=True)
+    y_prob = rf.predict_proba(X_test)[:,1]
 
-    report_df = pd.DataFrame(report).transpose()
-    st.dataframe(report_df)
+    rf_acc = rf.score(X_test, y_test)
+    st.metric("🌲 Random Forest Accuracy", f"{rf_acc:.2f}")
 
-    # -------------------------------
-    # 🎯 Prediction Section (BEST PART)
-    # -------------------------------
+
+    st.subheader("🎯 Adjust Prediction Sensitivity")
+    threshold = st.slider("Set probability threshold", 0.0, 1.0, 0.3)
+
     st.subheader("🎯 Make a Prediction")
 
     user_input = {}
     for feature in features:
-        user_input[feature] = st.number_input(f"{feature}", value=float(df[feature].mean()))
+        user_input[feature] = st.number_input(
+            f"{feature}", value=float(df[feature].mean())
+        )
 
     input_df = pd.DataFrame([user_input])
 
-    if st.button("Predict"):
-        pred = rf.predict(input_df)[0]
-        prob = rf.predict_proba(input_df)[0][1]
+    input_scaled = scaler.transform(input_df)
 
-        if pred == 1:
+    if st.button("Predict"):
+        prob = rf.predict_proba(input_scaled)[0][1]
+
+        if prob > threshold:
             st.error(f"⚠️ High Ozone Level (Probability: {prob:.2f})")
         else:
             st.success(f"✅ Low Ozone Level (Probability: {prob:.2f})")
-# -------------------------------
-# FOOTER
-# -------------------------------
-st.markdown("---")
-st.write("Built using Streamlit 🚀")
